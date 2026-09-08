@@ -9,7 +9,7 @@ A public signalling/relay server is available at `198.251.89.45`; self-hosting i
 &nbsp; | [Pluto](https://pluto-lang.org) | JavaScript | C++
 -------|---------------------------------|------------|----
 **Client** | Not planned | [tru-client.js](tru-client.js) | Not planned
-**Host** | [tru-host.pluto](tru-host.pluto) | Not planned | TODO
+**Host** | [tru-host.pluto](tru-host.pluto) | Not planned | [Soup](https://github.com/calamity-inc/Soup/blob/senpai/soup/truHostTask.hpp)
 **Relay** | [tru-relay.pluto](tru-relay.pluto) | Not planned | Not planned
 
 ## Protocol
