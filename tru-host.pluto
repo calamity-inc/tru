@@ -1,0 +1,12 @@
+require "libtru"
+
+local sock = truHost("198.251.89.45", arg[1], function(id, invite)
+	print("Waiting for client.")
+	print("To start the client, run: node tru-client.js "..(invite ? require"base64".urlencode(invite) : id))
+end)
+print("Connection established.")
+sock:wsSend("Hello from the host!")
+while data := sock:wsRecv() do
+	print("Got message: "..data)
+end
+print("Connection closed.")

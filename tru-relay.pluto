@@ -1,0 +1,68 @@
+local { scheduler, socket } = require "*"
+require "libtru"
+
+local sched = new scheduler()
+local hosts = {}
+local clients = {}
+socket.bind(sched, 7987, |s| -> do
+	local t, ot, id
+	xpcall(function()
+		truSetupFraming(s)
+		while data := s:wsRecv() do
+			--print("received frame: "..data)
+			if data:startswith("h ") then
+				t = hosts
+				ot = clients
+				local arr = data:sub(3):split(" ")
+				assert(#arr == 3)
+				id = arr[1]
+				local port = arr[2]
+				local lan_ips = arr[3]
+				if t[id] then
+					t[id].s:close()
+				end
+				t[id] = $object(s, port, lan_ips)
+				if ot[id] then
+					ot[id].s:wsSend("try "..port.." "..lan_ips)
+				else
+					s:wsSend("wait")
+				end
+			elseif data:startswith("c ") then
+				t = clients
+				ot = hosts
+				id = data:sub(3)
+				if t[id] then
+					t[id].s:close()
+				end
+				t[id] = $object(s)
+				if ot[id] then
+					s:wsSend("try "..ot[id].port.." "..ot[id].lan_ips)
+				else
+					s:wsSend("wait")
+				end
+			elseif data == "relay" then
+				if ot and ot[id] then
+					s:wsSend("relay")
+					local other_s = ot[id].s
+					if t[id] then
+						other_s:unrecv("\x81\x05relay")
+						ot[id] = nil
+					end
+					while r_data := s:wsRecv() do
+						other_s:wsSend(r_data)
+					end
+					other_s:close()
+					break
+				end
+			end
+		end
+	end, function(_e)
+		--print("closing connection due to error: "..tostring(_e))
+	end)
+	if t then
+		t[id] = nil
+	end
+	s:close()
+end)
+print("Bound TCP/7987")
+sched:run()

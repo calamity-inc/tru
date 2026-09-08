@@ -1,0 +1,116 @@
+function truIpToInt(ip)
+	local [a, b, c, d] = ip:split("."):map(tonumber)
+	return (a << 24) | (b << 16) | (c << 8) | d
+end
+assert(truIpToInt("127.0.0.1") == 0x7F000001)
+
+function truIntToIp(ip)
+	return $"{ip >> 24}.{(ip >> 16) & 0xff}.{(ip >> 8) & 0xff}.{ip & 0xff}"
+end
+assert(truIntToIp(0x7F000001) == "127.0.0.1")
+
+function truEncodeInvite(id: number, port: number, lan_ips)
+	return ">I4I2I1":pack(id, port, #lan_ips) .. lan_ips:map(|ip| -> ">I4":pack(truIpToInt(ip))):concat("")
+end
+assert(truEncodeInvite(0xcafebabe, 0x1234, { "127.0.0.1" }) == "\xca\xfe\xba\xbe\x12\x34\x01\x7f\x00\x00\x01")
+
+function truDecodeInvite(bin)
+	local id, port, num_lan_ips, i = ">I4I2I1":unpack(bin)
+	local lan_ips = {}
+	for j = 1, num_lan_ips do
+		local lan_ip
+		lan_ip, i = ">I4":unpack(bin, i)
+		lan_ips:insert(truIntToIp(lan_ip))
+	end
+	assert(i == #bin + 1, "unexpected invite length")
+	return id, port, lan_ips
+end
+do
+	local id, port, lan_ips = truDecodeInvite("\xca\xfe\xba\xbe\x12\x34\x01\x7f\x00\x00\x01")
+	assert(id == 0xcafebabe)
+	assert(port == 0x1234)
+	assert(#lan_ips == 1)
+	assert(lan_ips[1] == "127.0.0.1")
+end
+
+
+function truGetLanIps()
+	return { "127.0.0.1" } -- Can't natively read LAN IPs in Pluto currently (https://github.com/PlutoLang/Pluto/issues/1482)
+end
+
+local scheduler = require "pluto:scheduler"
+local socket = require "pluto:socket"
+local { wsIsUpgradeRequest } = require "websocket"
+
+local certs = {
+    {
+        chain = io.contents("cert/cert.pem"),
+        private_key = io.contents("cert/key.pem"),
+    }
+}
+
+function truSetupFraming(s)
+	-- Handle optional TLS handshake
+	if req := s:recv() then
+		s:unrecv(req)
+		if req:startswith("\x16\x03") then
+			s:starttls(certs)
+		end
+	end
+
+	-- Handle optional HTTP request for WS upgrade
+	if req := s:recv() then
+		if key := wsIsUpgradeRequest(req) then
+			s:wsUpgrade(key)
+		else
+			s:unrecv(req)
+		end
+	end
+end
+
+function truHost(relay: string, id: ?string, onwaiting: ?function(?string))
+	local ctrl = socket.connect(relay, 7987)
+	assert(ctrl, "Failed to connect to relay")
+	--assert(ctrl:wsUpgrade(relay))
+	local lan_port <const> = 7989 -- Hardcoded due to https://github.com/PlutoLang/Pluto/issues/1483
+	local lan_ips = truGetLanIps()
+	local invite: ?string
+	if not id then
+		local id_int = math.random(0, 0xffffffff)
+		id = string.format("%08x", id_int)
+		invite = truEncodeInvite(id_int, lan_port, lan_ips)
+	end
+	ctrl:wsSend($"h {id} {lan_port} {lan_ips:concat(",")}")
+	local sched = new scheduler()
+	local conn
+	socket.bind(sched, lan_port, |s| -> do
+		truSetupFraming(s)
+		if c_id := s:wsRecv() then
+			if c_id == id then
+				conn = s
+				s:wsSend(id)
+				ctrl:close()
+				error()
+			end
+		end
+	end)
+	sched:add(function()
+		while data := ctrl:wsRecv() do
+			--print("ctrl->host: "..data)
+			if data == "wait" then
+				if onwaiting then
+					onwaiting(id, invite)
+				end
+			elseif data == "relay" then
+				conn = ctrl
+				error()
+			end
+		end
+		error("Connection to relay lost before client connection was established")
+	end)
+	local ok, err = pcall(|| -> sched:run())
+	if not ok and not conn then
+		error(err)
+	end
+	return conn
+end
