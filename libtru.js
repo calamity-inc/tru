@@ -70,24 +70,21 @@ const openWs = (ip, port) => {
 };
 
 const tryLanConnection = (id, port, lan_ips) => {
-	return Promise.race([
-		Promise.any(
-			lan_ips.map(ip => {
-				return new Promise((resolve, reject) => {
-					openWs(ip, port).then(ws => {
-						hookWsReject(ws, reject);
-						ws.onmessage = (event) => {
-							if (event.data == id) {
-								resolve(ws);
-							}
-						};
-						ws.send(id);
-					}).catch(reject);
-				});
-			})
-		),
-		new Promise((_resolve, reject) => setTimeout(reject, 300, "timeout"))
-	]);
+	return Promise.any(
+		lan_ips.map(ip => {
+			return new Promise((resolve, reject) => {
+				openWs(ip, port).then(ws => {
+					hookWsReject(ws, reject);
+					ws.onmessage = (event) => {
+						if (event.data == id) {
+							resolve(ws);
+						}
+					};
+					ws.send(id);
+				}).catch(reject);
+			});
+		})
+	);
 };
 
 /**
