@@ -19,7 +19,6 @@ const truEncodeInvite = (id, port, lanIps) => {
 	});
 	return buffer;
 };
-console.assert(truEncodeInvite(0xcafebabe, 0x1234, ["127.0.0.1"]).equals(Buffer.from([ 0xca, 0xfe, 0xba, 0xbe, 0x12, 0x34, 0x01, 0x7f, 0x00, 0x00, 0x01 ])));
 
 const truDecodeInvite = (buffer) => {
 	const id = buffer.readUInt32BE(0);
@@ -37,7 +36,9 @@ const truDecodeInvite = (buffer) => {
 	}
 	return [id, port, lan_ips];
 };
-{
+
+if (typeof Buffer != "undefined") {
+	console.assert(truEncodeInvite(0xcafebabe, 0x1234, ["127.0.0.1"]).equals(Buffer.from([ 0xca, 0xfe, 0xba, 0xbe, 0x12, 0x34, 0x01, 0x7f, 0x00, 0x00, 0x01 ])));
 	const [id, port, lan_ips] = truDecodeInvite(Buffer.from([ 0xca, 0xfe, 0xba, 0xbe, 0x12, 0x34, 0x01, 0x7f, 0x00, 0x00, 0x01 ]));
 	console.assert(id === 0xcafebabe);
 	console.assert(port === 0x1234);
