@@ -86,7 +86,7 @@ const tryLanConnection = (id, port, lan_ips) => {
 				});
 			})
 		),
-		new Promise((_resolve, reject) => setTimeout(reject, 100, "timeout"))
+		new Promise((_resolve, reject) => setTimeout(reject, 300, "timeout"))
 	]);
 };
 

@@ -31,5 +31,5 @@ Messages from TRU Relay:
 - `wait` means initiate succeeded on this end and we're now waiting for the other party to initiate.
 - `try <port> <lan ips>` is sent to the client after both sides have initiated.
 	- The client should now contact all given LAN IPs on the given port by establishing a WebSocket connection and sending the id. If the id is echoed back, the connection succeeds.
-	- The first LAN connection that succeeds is used. If all failed or 100 ms have passed, send `relay`.
+	- The first LAN connection that succeeds is used. If all failed or 300 ms have passed, send `relay`.
 - `relay` is sent to both parties to indicate that the signalling connection has become a relay connection and transitions to the application protocol.
